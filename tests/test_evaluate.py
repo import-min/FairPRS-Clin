@@ -1,6 +1,8 @@
 from pathlib import Path
 from fairprs_clin.evaluate import evaluate_scores
 
+
+
 def test_evaluate(tmp_path: Path):
     scores = tmp_path / "scores.csv"
     scores.write_text("IID,SCORE\nA,0.0\nB,1.0\nC,2.0\n")
