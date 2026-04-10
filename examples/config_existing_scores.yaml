@@ -5,7 +5,7 @@ out: out/demo_existing
 scores:
   mode: existing
   path: /path/to/plink_output.sscore  # or CSV with IID + score
-  # score_column: SCORE   # only needed for custom CSVs
+  # score_column: SCORE   # only needed with custom CSVs
 
 groups:
   path: /path/to/groups.tsv
