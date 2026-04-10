@@ -1,20 +1,8 @@
 # FairPRS-Clin
 
-FairPRS-Clin is a lightweight, ClinGen PRS-RS–aligned **evaluation and reporting** pipeline for applying **published polygenic risk scores (PRS)** to **public genotype data** and summarizing **ancestry-stratified score behavior** (distributions, summary stats, and cutoff-based flagging).
+A lightweight, ClinGen PRS-RS–aligned evaluation and reporting pipeline for applying published polygenic risk scores (PRS) to public genotype data and summarizing ancestry stratified score behavior. You can run FairPRS-Clin in two modes:
 
-This repo is designed to be:
-- a reusable **research utility** (swap in any PRS + grouping file)
-- a **teaching resource** (clear artifacts + PRS-RS mapping)
-
-> ⚠️ FairPRS-Clin **does not** claim clinical validity. It summarizes *how a PRS behaves* on a target genotype dataset. It does not infer disease risk without phenotype-linked validation and calibration.
-
----
-
-## What you provide (minimum)
-
-You can run FairPRS-Clin in **two modes**:
-
-### A) Recommended: compute PRS with `plink2` (fast, standard)
+A) Compute PRS with `plink2`
 You provide:
 1) A PLINK2 dataset prefix (`--pfile` or `--bfile`)  
 2) A PRS weight file (PGS Catalog scoring file or a simple TSV)  
@@ -26,15 +14,14 @@ FairPRS-Clin will:
 - call `plink2 --score ...` to compute per-sample PRS
 - generate plots + tables + PRS-RS–aligned report
 
-### B) If you already computed PRS elsewhere
+B) If you already computed PRS elsewhere
 You provide:
-- an `.sscore` file (PLINK2 output) **or** a CSV with `IID` + `SCORE`  
-- ancestry/group labels file  
+- an `.sscore` file (PLINK2 output) or a CSV with `IID` + `SCORE`  
+- ancestry/group labels file
+- 
 FairPRS-Clin skips scoring and goes straight to evaluation/reporting.
 
 ---
-
-## Quickstart
 
 ### 1) Install
 ```bash
@@ -54,7 +41,7 @@ HG00097    EUR
 ...
 ```
 
-**PRS weights** (supported formats):
+**PRS weights**:
 - PGS Catalog scoring file (common columns like `chr_name`, `chr_position`, `effect_allele`, `effect_weight`)
 - Simple TSV with columns:
   - `variant_id` (rsID or chr:pos:ref:alt)
@@ -85,20 +72,3 @@ In `--out` you get:
 - `reports/report.md` : PRS-RS–aligned report (human-readable)
 - `reports/prsrs_mapping.json` : PRS-RS item → computed artifact mapping
 - `logs/run_metadata.json` : provenance (versions, hashes, parameters)
-
----
-
-## Notes on 1000 Genomes
-FairPRS-Clin includes helper scripts to convert the 1000G panel file into a `IID → super_population` grouping file.
-
-See `examples/1000g_panel_to_groups.py`.
-
----
-
-## License
-MIT (see `LICENSE`).
-
----
-
-## Citation
-If you use this repository, please cite the accompanying manuscript or include a link to the GitHub release.
