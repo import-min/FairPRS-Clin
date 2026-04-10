@@ -1,6 +1,6 @@
 # FairPRS-Clin
 
-A lightweight, ClinGen PRS-RS–aligned evaluation and reporting pipeline for applying published polygenic risk scores (PRS) to public genotype data and summarizing ancestry stratified score behavior. You can run FairPRS-Clin in two modes:
+ClinGen PRS-RS–aligned evaluation and reporting pipeline for applying published polygenic risk scores (PRS) to public genotype data and summarizing ancestry stratified score behavior. You can run FairPRS-Clin in two modes:
 
 A) Compute PRS with `plink2`
 You provide:
