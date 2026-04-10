@@ -1,0 +1,26 @@
+# Example config: compute PRS with plink2, then evaluate + report.
+# Edit paths before running.
+
+out: out/demo_plink2
+
+plink2:
+  path: plink2               # or /full/path/to/plink2
+  extra_args: []             # e.g. ["--threads", "8"]
+
+genotypes:
+  mode: pfile                # pfile (PLINK2 .pgen) or bfile (PLINK .bed)
+  prefix: /path/to/1000g_prefix   # without extension
+
+weights:
+  path: /path/to/your_prs_weights.tsv  # PGS Catalog scoring file or simple TSV
+
+groups:
+  path: /path/to/groups.tsv  # IID  group
+
+evaluate:
+  standardize: global        # global | within_group | none
+  cutoff_percentile: 95      # example: top 5% flagged; OR set cutoff: 2.0 (z-score)
+  # cutoff: 2.0
+
+report:
+  title: "FairPRS-Clin Report (Demo)"

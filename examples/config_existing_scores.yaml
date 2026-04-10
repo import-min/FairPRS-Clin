@@ -1,0 +1,18 @@
+# Example config: skip scoring, evaluate from existing .sscore or CSV.
+
+out: out/demo_existing
+
+scores:
+  mode: existing
+  path: /path/to/plink_output.sscore  # or CSV with IID + score
+  # score_column: SCORE   # only needed for custom CSVs
+
+groups:
+  path: /path/to/groups.tsv
+
+evaluate:
+  standardize: global
+  cutoff_percentile: 95
+
+report:
+  title: "FairPRS-Clin Report (Existing Scores)"
