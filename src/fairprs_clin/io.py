@@ -26,7 +26,7 @@ def load_scores(scores_path: Path, score_column: Optional[str] = None) -> pd.Dat
     if scores_path.suffix.lower() in [".sscore", ".txt", ".tsv", ".tab"]:
         # try whitespace first
         try:
-            df = pd.read_csv(scores_path, sep="\s+")
+            df = pd.read_csv(scores_path, sep=r"\s+")
         except Exception:
             df = read_table(scores_path)
     else:
