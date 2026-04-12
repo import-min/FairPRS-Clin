@@ -9,6 +9,7 @@ from .report import write_report
 from .scoring import normalize_weights_file, run_plink2_score
 from .utils import ensure_dir, env_metadata, write_json
 
+
 def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> None:
     cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     out_dir = Path(out_override) if out_override else Path(cfg.get("out", "out/run"))
@@ -17,15 +18,23 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
 
     meta: Dict[str, Any] = {"config": str(config_path), "env": env_metadata(), "inputs": {}}
 
-    # groups and weights
     groups_path = Path(cfg["groups"]["path"])
     meta["inputs"]["groups"] = str(groups_path)
 
-    scores_mode = cfg.get("scores", {}).get("mode", "plink2")  # plink2 or existing
+    scores_mode = cfg.get("scores", {}).get("mode", "plink2")
     standardize = cfg.get("evaluate", {}).get("standardize", "global")
-
     cutoff = cfg.get("evaluate", {}).get("cutoff", None)
     cutoff_percentile = cfg.get("evaluate", {}).get("cutoff_percentile", None)
+    n_boot = cfg.get("evaluate", {}).get("n_boot", 1000)
+    equalize_target = cfg.get("evaluate", {}).get("equalize_target", 0.10)
+
+    # optional outcomes for clinical validity
+    outcomes_path = None
+    outcome_column = None
+    if "outcomes" in cfg:
+        outcomes_path = Path(cfg["outcomes"]["path"])
+        outcome_column = cfg["outcomes"].get("outcome_column", None)
+        meta["inputs"]["outcomes"] = str(outcomes_path)
 
     if scores_mode == "existing":
         scores_path = Path(cfg["scores"]["path"])
@@ -38,6 +47,10 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
             cutoff_percentile=cutoff_percentile,
             standardize=standardize,
             score_column=cfg.get("scores", {}).get("score_column", None),
+            n_boot=n_boot,
+            equalize_target=equalize_target,
+            outcomes_path=outcomes_path,
+            outcome_column=outcome_column,
         )
         meta.update(eval_meta)
         write_report(out_dir, meta, title=cfg.get("report", {}).get("title", "FairPRS-Clin Report"))
@@ -47,9 +60,8 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
     if scores_mode != "plink2":
         raise ValueError("scores.mode must be 'plink2' or 'existing'")
 
-    # plink2 scoring path
     plink2_path = cfg["plink2"]["path"]
-    dataset_mode = cfg["genotypes"]["mode"]  # pfile or bfile
+    dataset_mode = cfg["genotypes"]["mode"]
     dataset_prefix = Path(cfg["genotypes"]["prefix"])
     meta["inputs"]["genotypes"] = {"mode": dataset_mode, "prefix": str(dataset_prefix)}
     meta["inputs"]["plink2"] = plink2_path
@@ -80,11 +92,16 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
         cutoff_percentile=cutoff_percentile,
         standardize=standardize,
         score_column=None,
+        n_boot=n_boot,
+        equalize_target=equalize_target,
+        outcomes_path=outcomes_path,
+        outcome_column=outcome_column,
     )
     meta.update(eval_meta)
 
     write_report(out_dir, meta, title=cfg.get("report", {}).get("title", "FairPRS-Clin Report"))
     write_json(logs_dir / "run_metadata.json", meta)
+
 
 def evaluate_only(
     scores_path: Path,
@@ -94,6 +111,10 @@ def evaluate_only(
     cutoff_percentile: Optional[float],
     standardize: str,
     score_column: Optional[str] = None,
+    n_boot: int = 1000,
+    equalize_target: float = 0.10,
+    outcomes_path: Optional[Path] = None,
+    outcome_column: Optional[str] = None,
 ) -> None:
     meta = evaluate_scores(
         scores_path=scores_path,
@@ -103,5 +124,9 @@ def evaluate_only(
         cutoff_percentile=cutoff_percentile,
         standardize=standardize,
         score_column=score_column,
+        n_boot=n_boot,
+        equalize_target=equalize_target,
+        outcomes_path=outcomes_path,
+        outcome_column=outcome_column,
     )
     write_report(out_dir, meta, title="FairPRS-Clin Report")
