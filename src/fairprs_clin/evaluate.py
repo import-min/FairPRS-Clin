@@ -96,7 +96,26 @@ def evaluate_scores(
     score_column: Optional[str] = None,
     n_boot: int = 1000,
     equalize_target: float = 0.10,
+    outcomes_path: Optional[Path] = None,
+    outcome_column: Optional[str] = None,
 ) -> Dict:
+    """Run full ancestry-stratified PRS evaluation.
+
+    Parameters
+    ----------
+    scores_path     : .sscore or CSV with IID + score column
+    groups_path     : TSV/CSV with IID + group (ancestry) column
+    out_dir         : output directory
+    cutoff          : absolute score cutoff (mutually exclusive with cutoff_percentile)
+    cutoff_percentile : percentile cutoff 0-100
+    standardize     : 'global', 'within_group', or 'none'
+    score_column    : column name for score in CSV (auto-detected if None)
+    n_boot          : number of bootstrap resamples for CIs (default 1000)
+    equalize_target : target flagging rate for equalized cutoffs (default 0.10)
+    outcomes_path   : optional TSV/CSV with IID + binary outcome (0/1)
+                      when provided, computes AUC and calibration per group
+    outcome_column  : column name for outcome (auto-detected if None)
+    """
     out_dir = ensure_dir(out_dir)
     tables_dir = ensure_dir(out_dir / "tables")
     figs_dir = ensure_dir(out_dir / "figures")
@@ -139,28 +158,67 @@ def evaluate_scores(
         eq_df = equalized_cutoffs(df, target_flagging_rate=equalize_target)
         eq_df.to_csv(tables_dir / "equalized_cutoffs.tsv", sep="\t", index=False)
 
-    # sensitivity curve (50th–99th percentile)
-    sens_df = sensitivity_curve(df)
+    # sensitivity curve (5th–99th percentile — full range)
+    sens_df = sensitivity_curve(df, percentiles=list(range(5, 100)))
     sens_df.to_csv(tables_dir / "sensitivity_curve.tsv", sep="\t", index=False)
 
     # ── Figures ───────────────────────────────────────────────────────────
-    plot_distributions_kde(
-        df, figs_dir / "score_distributions_kde.png", cutoff_value=c_val
-    )
-    plot_sensitivity_curve(
-        sens_df, figs_dir / "sensitivity_curve.png",
-        highlight_percentile=cutoff_percentile,
-    )
-    plot_disparity_curve(
-        sens_df, figs_dir / "disparity_curve.png",
-        highlight_percentile=cutoff_percentile,
-    )
+    plot_distributions_kde(df, figs_dir / "score_distributions_kde.png", cutoff_value=c_val)
+    plot_sensitivity_curve(sens_df, figs_dir / "sensitivity_curve.png",
+                           highlight_percentile=cutoff_percentile)
+    plot_disparity_curve(sens_df, figs_dir / "disparity_curve.png",
+                         highlight_percentile=cutoff_percentile)
     if len(smd_df) > 0:
         plot_smd_heatmap(smd_df, figs_dir / "smd_heatmap.png")
     if "mean_ci_lo" in boot_df.columns:
         plot_bootstrap_ci_bars(boot_df, figs_dir / "bootstrap_means.png")
     if c_val is not None and not eq_df.empty:
         plot_equalized_cutoffs(eq_df, c_val, figs_dir / "equalized_cutoffs.png")
+
+    # ── Clinical validity (only when outcomes provided) ───────────────────
+    calibration_meta: Dict = {}
+    if outcomes_path is not None:
+        from .calibration import (
+            load_outcomes, discrimination_stats, calibration_stats,
+            plot_roc_by_group, plot_calibration_by_group, plot_auc_comparison,
+        )
+        outcomes = load_outcomes(outcomes_path, outcome_col=outcome_column)
+        df_clin = df.merge(outcomes, on="IID", how="inner")
+
+        if df_clin.empty:
+            calibration_meta["warning"] = "No IID overlap between scores and outcomes."
+        else:
+            n_cases = int((df_clin["outcome"] == 1).sum())
+            n_controls = int((df_clin["outcome"] == 0).sum())
+
+            disc_df = discrimination_stats(df_clin, n_boot=n_boot)
+            disc_df.to_csv(tables_dir / "discrimination_auc.tsv", sep="\t", index=False)
+
+            cal_df = calibration_stats(df_clin)
+            cal_df.to_csv(tables_dir / "calibration_stats.tsv", sep="\t", index=False)
+
+            plot_roc_by_group(df_clin, figs_dir / "roc_by_group.png")
+            plot_calibration_by_group(df_clin, figs_dir / "calibration_by_group.png")
+            plot_auc_comparison(disc_df, figs_dir / "auc_comparison.png")
+
+            calibration_meta = {
+                "n_with_outcomes": int(df_clin.shape[0]),
+                "n_cases": n_cases,
+                "n_controls": n_controls,
+                "outcomes_file": str(outcomes_path),
+                "per_group_auc": {
+                    row["group"]: row["auc"]
+                    for _, row in disc_df.iterrows()
+                    if not np.isnan(row["auc"])
+                },
+                "artifacts": {
+                    "discrimination_auc": str(tables_dir / "discrimination_auc.tsv"),
+                    "calibration_stats": str(tables_dir / "calibration_stats.tsv"),
+                    "roc_plot": str(figs_dir / "roc_by_group.png"),
+                    "calibration_plot": str(figs_dir / "calibration_by_group.png"),
+                    "auc_comparison_plot": str(figs_dir / "auc_comparison.png"),
+                },
+            }
 
     # ── Metadata ──────────────────────────────────────────────────────────
     meta = {
@@ -170,6 +228,7 @@ def evaluate_scores(
         "standardize": standardize,
         "cutoff": {"value": c_val, "kind": c_kind},
         "equity": disparity_meta,
+        "clinical_validity": calibration_meta,
         "artifacts": {
             "scores_with_groups": str(tables_dir / "scores_with_groups.tsv"),
             "summary_by_group": str(tables_dir / "summary_by_group.tsv"),
