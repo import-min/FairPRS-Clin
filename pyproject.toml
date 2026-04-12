@@ -4,14 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fairprs-clin"
-version = "0.2.0"
-description = "ClinGen PRS-RS–aligned ancestry-stratified PRS evaluation framework"
+version = "0.3.0"
+description = "ClinGen PRS-RS–aligned ancestry-stratified PRS evaluation and clinical validity framework"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
-authors = [
-  {name = "Minahal Aisha"},
-]
+authors = [{name = "Minahal Aisha"}]
 dependencies = [
   "numpy>=1.22",
   "pandas>=1.5",
@@ -19,6 +17,7 @@ dependencies = [
   "pyyaml>=6.0",
   "tabulate>=0.8",
   "scipy>=1.9",
+  "scikit-learn>=1.1",
 ]
 
 [project.scripts]
