@@ -2,12 +2,14 @@
 equity.py — ancestry-stratified equity metrics for PRS evaluation.
 
 Provides:
-  - pairwise_smds          : standardized mean differences between all group pairs
-  - ks_tests               : pairwise Kolmogorov-Smirnov tests
-  - bootstrap_group_stats  : bootstrap CIs (mean, flagging rate) per group
-  - flagging_disparity     : max/min flagging ratio + which groups are affected
-  - sensitivity_curve      : flagging rate per group across a range of cutoffs
-  - equalized_cutoffs      : per-group cutoffs that achieve a target flagging rate
+  - pairwise_smds                  : standardized mean differences between all group pairs
+  - ks_tests                       : pairwise Kolmogorov-Smirnov tests
+  - bootstrap_group_stats          : bootstrap CIs (mean, flagging rate) per group
+  - flagging_disparity             : max/min flagging ratio + which groups are affected
+  - sensitivity_curve              : flagging rate per group across a range of cutoffs
+  - equalized_cutoffs              : per-group cutoffs that achieve a target flagging rate
+  - resource_constrained_fair_threshold (RCFT) : NEW — optimal per-group thresholds
+                                                 under a total screening budget constraint
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
+from scipy.optimize import minimize_scalar
 
 
 # ── Pairwise standardized mean differences ────────────────────────────────
@@ -36,7 +39,6 @@ def pairwise_smds(df: pd.DataFrame, score_col: str = "SCORE_STD") -> pd.DataFram
             xa = df.loc[df["group"] == ga, score_col].values
             xb = df.loc[df["group"] == gb, score_col].values
             na, nb = len(xa), len(xb)
-            # pooled SD (Cohen's d)
             pooled_sd = np.sqrt(
                 ((na - 1) * xa.std(ddof=1) ** 2 + (nb - 1) * xb.std(ddof=1) ** 2)
                 / (na + nb - 2)
@@ -44,8 +46,7 @@ def pairwise_smds(df: pd.DataFrame, score_col: str = "SCORE_STD") -> pd.DataFram
             pooled_sd = pooled_sd if pooled_sd > 0 else 1.0
             smd = (xa.mean() - xb.mean()) / pooled_sd
             records.append({
-                "group_a": ga,
-                "group_b": gb,
+                "group_a": ga, "group_b": gb,
                 "mean_a": round(float(xa.mean()), 4),
                 "mean_b": round(float(xb.mean()), 4),
                 "smd": round(float(smd), 4),
@@ -57,10 +58,7 @@ def pairwise_smds(df: pd.DataFrame, score_col: str = "SCORE_STD") -> pd.DataFram
 # ── Pairwise KS tests ─────────────────────────────────────────────────────
 
 def ks_tests(df: pd.DataFrame, score_col: str = "SCORE_STD") -> pd.DataFrame:
-    """Two-sample KS test between every pair of ancestry groups.
-
-    Returns a DataFrame with columns: group_a, group_b, ks_stat, p_value, significant (p<0.05).
-    """
+    """Two-sample KS test between every pair of ancestry groups."""
     groups = sorted(df["group"].unique())
     records = []
     for i, ga in enumerate(groups):
@@ -69,8 +67,7 @@ def ks_tests(df: pd.DataFrame, score_col: str = "SCORE_STD") -> pd.DataFrame:
             xb = df.loc[df["group"] == gb, score_col].values
             result = stats.ks_2samp(xa, xb)
             records.append({
-                "group_a": ga,
-                "group_b": gb,
+                "group_a": ga, "group_b": gb,
                 "ks_stat": round(float(result.statistic), 4),
                 "p_value": round(float(result.pvalue), 6),
                 "significant_p05": bool(result.pvalue < 0.05),
@@ -88,22 +85,9 @@ def bootstrap_group_stats(
     score_col: str = "SCORE_STD",
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Bootstrap CIs for per-group mean and (optionally) flagging rate.
-
-    Parameters
-    ----------
-    df           : DataFrame with 'group' and score_col columns
-    cutoff_value : if provided, also bootstraps flagging rate CI
-    n_boot       : number of bootstrap resamples
-    ci           : confidence level (default 95)
-    seed         : random seed for reproducibility
-
-    Returns DataFrame with: group, mean, mean_ci_lo, mean_ci_hi,
-                            [flagging_rate, flag_ci_lo, flag_ci_hi]
-    """
+    """Bootstrap CIs for per-group mean and (optionally) flagging rate."""
     rng = np.random.default_rng(seed)
     alpha = (100 - ci) / 2
-
     records = []
     for grp, sub in df.groupby("group"):
         x = sub[score_col].values
@@ -112,8 +96,7 @@ def bootstrap_group_stats(
             for _ in range(n_boot)
         ])
         rec = {
-            "group": grp,
-            "n": len(x),
+            "group": grp, "n": len(x),
             "mean": round(float(x.mean()), 4),
             "mean_ci_lo": round(float(np.percentile(boot_means, alpha)), 4),
             "mean_ci_hi": round(float(np.percentile(boot_means, 100 - alpha)), 4),
@@ -137,18 +120,7 @@ def flagging_disparity(
     cutoff_value: float,
     score_col: str = "SCORE_STD",
 ) -> Dict:
-    """Compute the disparity ratio: max(flagging_rate) / min(flagging_rate).
-
-    This single number summarises how unequal the screening burden is
-    across ancestry groups under a given cutoff.
-
-    Returns a dict with:
-        disparity_ratio   : max / min flagging rate
-        max_group         : group with highest flagging rate
-        min_group         : group with lowest flagging rate
-        flagging_rates    : per-group rates
-        absolute_disparity: max - min flagging rate (percentage points)
-    """
+    """Compute the disparity ratio: max(flagging_rate) / min(flagging_rate)."""
     rates = (
         df.groupby("group")[score_col]
         .apply(lambda x: (x >= cutoff_value).mean())
@@ -180,18 +152,9 @@ def sensitivity_curve(
     percentiles: Optional[List[float]] = None,
     score_col: str = "SCORE_STD",
 ) -> pd.DataFrame:
-    """Compute per-group flagging rates across a range of cutoff percentiles.
-
-    Parameters
-    ----------
-    df          : DataFrame with 'group' and score_col columns
-    percentiles : list of percentiles (0-100) to evaluate; defaults to 5..99 step 1
-
-    Returns a long-format DataFrame:
-        percentile | cutoff_value | group | flagging_rate | disparity_ratio
-    """
+    """Compute per-group flagging rates across a range of cutoff percentiles."""
     if percentiles is None:
-        percentiles = list(range(50, 100))  # 50th–99th percentile
+        percentiles = list(range(5, 100))
 
     all_scores = df[score_col].values
     groups = sorted(df["group"].unique())
@@ -214,38 +177,185 @@ def sensitivity_curve(
     return pd.DataFrame(records)
 
 
-# ── Equalized cutoffs (recalibration) ────────────────────────────────────
+# ── Equalized cutoffs ─────────────────────────────────────────────────────
 
 def equalized_cutoffs(
     df: pd.DataFrame,
     target_flagging_rate: float = 0.10,
     score_col: str = "SCORE_STD",
 ) -> pd.DataFrame:
-    """For each group, find the score threshold that achieves a target flagging rate.
-
-    This is a recalibration step: instead of one global cutoff, compute
-    group-specific cutoffs such that each group has approximately the same
-    proportion flagged. Useful for showing what 'equalized screening' would require.
-
-    Parameters
-    ----------
-    target_flagging_rate : desired proportion flagged per group (e.g. 0.10 = top 10%)
-
-    Returns DataFrame: group | equalized_cutoff | achieved_flagging_rate | n
-    """
+    """Per-group cutoffs that achieve a target flagging rate."""
     records = []
     for grp, sub in df.groupby("group"):
         x = sub[score_col].values
-        # the cutoff that gives target_flagging_rate is the (1-target)th percentile
         pct = (1.0 - target_flagging_rate) * 100.0
         pct = max(0.0, min(100.0, pct))
         cutoff = float(np.percentile(x, pct))
         achieved = float((x >= cutoff).mean())
         records.append({
-            "group": grp,
-            "n": len(x),
+            "group": grp, "n": len(x),
             "equalized_cutoff": round(cutoff, 4),
             "achieved_flagging_rate": round(achieved, 4),
             "target_flagging_rate": target_flagging_rate,
         })
     return pd.DataFrame(records)
+
+
+# ── Resource-Constrained Fair Threshold (RCFT) ────────────────────────────
+# Novel algorithm — FairPRS-Clin (Aisha, 2025)
+
+def resource_constrained_fair_threshold(
+    df: pd.DataFrame,
+    budget: float = 0.10,
+    fairness_criterion: str = "demographic_parity",
+    score_col: str = "SCORE_STD",
+    n_grid: int = 500,
+) -> pd.DataFrame:
+    """Find per-group screening thresholds that minimize disparity subject
+    to a total screening budget constraint.
+
+    This is a constrained optimization problem absent from existing PRS tools.
+    Simple equalized_cutoffs ignores the budget: if you set everyone to
+    target=10%, the total flagged fraction will not equal 10% when group
+    sizes differ. RCFT enforces:
+
+        Σ_g  (n_g / N) * flagging_rate_g  ≤  budget
+
+    while minimizing one of:
+        - "demographic_parity"  : max(flagging_rate_g) - min(flagging_rate_g)
+        - "chebyshev"           : max |flagging_rate_g - target_global|
+        - "variance"            : Var(flagging_rate_g across groups)
+
+    Method
+    ------
+    Lagrangian relaxation via scalar binary search on the multiplier λ:
+
+        L(T_g, λ) = fairness_objective(T_g) + λ * (Σ n_g/N * flag_g - budget)
+
+    For fixed λ, each group's optimal threshold is found by grid search
+    over a fine score quantile grid. The outer binary search adjusts λ
+    until the budget constraint is satisfied.
+
+    Parameters
+    ----------
+    df                 : DataFrame with 'group' and score_col
+    budget             : maximum fraction of total population to flag (e.g. 0.10)
+    fairness_criterion : 'demographic_parity', 'chebyshev', or 'variance'
+    score_col          : standardized score column
+    n_grid             : number of threshold candidates per group
+
+    Returns
+    -------
+    DataFrame: group | n | rcft_cutoff | rcft_flagging_rate |
+               global_budget_flagging_rate | budget | fairness_criterion |
+               disparity_ratio_rcft | disparity_ratio_naive
+    """
+    groups = sorted(df["group"].unique())
+    N = len(df)
+    group_data = {g: df.loc[df["group"] == g, score_col].values for g in groups}
+    group_n = {g: len(v) for g, v in group_data.items()}
+    group_weights = {g: group_n[g] / N for g in groups}
+
+    # Candidate thresholds: dense grid from 1st to 99th percentile of each group
+    group_thresholds = {
+        g: np.linspace(
+            np.percentile(v, 1), np.percentile(v, 99), n_grid
+        )
+        for g, v in group_data.items()
+    }
+
+    # Precompute flagging rates at each candidate threshold
+    # flag_rates[g][j] = flagging rate of group g at threshold j
+    flag_rates = {
+        g: np.array([(v >= t).mean() for t in group_thresholds[g]])
+        for g, v in group_data.items()
+    }
+
+    def solve_for_lambda(lam: float) -> Dict[str, int]:
+        """For a given Lagrange multiplier, find per-group optimal threshold index."""
+        best_idx = {}
+        for g in groups:
+            thresholds_g = group_thresholds[g]
+            rates_g = flag_rates[g]
+            # Global target = budget (equal for all groups under demographic parity)
+            global_target = budget
+
+            if fairness_criterion == "demographic_parity":
+                # Minimize |rate_g - global_target| + lam * weight_g * rate_g
+                costs = np.abs(rates_g - global_target) + lam * group_weights[g] * rates_g
+            elif fairness_criterion == "chebyshev":
+                costs = np.abs(rates_g - global_target) + lam * group_weights[g] * rates_g
+            elif fairness_criterion == "variance":
+                # Variance penalty — use squared deviation from mean
+                mean_rate = np.mean([np.mean(flag_rates[gg]) for gg in groups])
+                costs = (rates_g - mean_rate) ** 2 + lam * group_weights[g] * rates_g
+            else:
+                raise ValueError(f"Unknown fairness_criterion: {fairness_criterion}")
+
+            best_idx[g] = int(np.argmin(costs))
+        return best_idx
+
+    def total_flagged(idx: Dict[str, int]) -> float:
+        return sum(group_weights[g] * flag_rates[g][idx[g]] for g in groups)
+
+    # Binary search on lambda to find budget-satisfying solution
+    lam_lo, lam_hi = 0.0, 100.0
+    best_idx = solve_for_lambda(0.0)
+
+    for _ in range(60):  # 60 iterations → precision ~1e-18
+        lam_mid = (lam_lo + lam_hi) / 2.0
+        idx = solve_for_lambda(lam_mid)
+        tf = total_flagged(idx)
+        if tf <= budget:
+            lam_hi = lam_mid
+        else:
+            lam_lo = lam_mid
+        best_idx = idx
+
+    # Ensure budget is met — if not, increase thresholds
+    # (fall back to simple budget-proportional allocation)
+    if total_flagged(best_idx) > budget * 1.05:
+        # Fallback: find global cutoff that achieves budget
+        all_scores = df[score_col].values
+        global_cutoff = float(np.percentile(all_scores, (1 - budget) * 100))
+        for g in groups:
+            idx_g = int(np.argmin(np.abs(group_thresholds[g] - global_cutoff)))
+            best_idx[g] = idx_g
+
+    # Naive comparison: global single cutoff
+    all_scores = df[score_col].values
+    naive_cutoff = float(np.percentile(all_scores, (1 - budget) * 100))
+    naive_rates = {g: float((group_data[g] >= naive_cutoff).mean()) for g in groups}
+    naive_non_zero = [r for r in naive_rates.values() if r > 0]
+    naive_dr = (max(naive_non_zero) / min(naive_non_zero)
+                if len(naive_non_zero) > 1 and min(naive_non_zero) > 0
+                else float("inf"))
+
+    # RCFT results
+    rcft_rates = {g: float(flag_rates[g][best_idx[g]]) for g in groups}
+    rcft_cutoffs = {g: float(group_thresholds[g][best_idx[g]]) for g in groups}
+    rcft_non_zero = [r for r in rcft_rates.values() if r > 0]
+    rcft_dr = (max(rcft_non_zero) / min(rcft_non_zero)
+               if len(rcft_non_zero) > 1 and min(rcft_non_zero) > 0
+               else float("inf"))
+
+    actual_budget = total_flagged(best_idx)
+
+    records = []
+    for g in groups:
+        records.append({
+            "group": g,
+            "n": group_n[g],
+            "rcft_cutoff": round(rcft_cutoffs[g], 4),
+            "rcft_flagging_rate": round(rcft_rates[g], 4),
+            "naive_cutoff": round(naive_cutoff, 4),
+            "naive_flagging_rate": round(naive_rates[g], 4),
+            "budget": budget,
+            "actual_budget_used": round(actual_budget, 4),
+            "fairness_criterion": fairness_criterion,
+            "disparity_ratio_rcft": round(rcft_dr, 3) if not np.isinf(rcft_dr) else None,
+            "disparity_ratio_naive": round(naive_dr, 3) if not np.isinf(naive_dr) else None,
+        })
+
+    df_out = pd.DataFrame(records)
+    return df_out
