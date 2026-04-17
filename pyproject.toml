@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fairprs-clin"
-version = "0.3.0"
-description = "ClinGen PRS-RS–aligned ancestry-stratified PRS evaluation and clinical validity framework"
+version = "0.4.0"
+description = "Ancestry-stratified PRS evaluation with novel APS, BGR, and RCFT algorithms"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
