@@ -27,8 +27,11 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
     cutoff_percentile = cfg.get("evaluate", {}).get("cutoff_percentile", None)
     n_boot = cfg.get("evaluate", {}).get("n_boot", 1000)
     equalize_target = cfg.get("evaluate", {}).get("equalize_target", 0.10)
+    rcft_budget = cfg.get("evaluate", {}).get("rcft_budget", 0.10)
+    rcft_criterion = cfg.get("evaluate", {}).get("rcft_criterion", "demographic_parity")
+    run_bgr = cfg.get("evaluate", {}).get("run_bgr", True)
+    bgr_n_threshold = cfg.get("evaluate", {}).get("bgr_n_threshold", 100)
 
-    # optional outcomes for clinical validity
     outcomes_path = None
     outcome_column = None
     if "outcomes" in cfg:
@@ -40,17 +43,13 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
         scores_path = Path(cfg["scores"]["path"])
         meta["inputs"]["scores"] = str(scores_path)
         eval_meta = evaluate_scores(
-            scores_path=scores_path,
-            groups_path=groups_path,
-            out_dir=out_dir,
-            cutoff=cutoff,
-            cutoff_percentile=cutoff_percentile,
-            standardize=standardize,
+            scores_path=scores_path, groups_path=groups_path, out_dir=out_dir,
+            cutoff=cutoff, cutoff_percentile=cutoff_percentile, standardize=standardize,
             score_column=cfg.get("scores", {}).get("score_column", None),
-            n_boot=n_boot,
-            equalize_target=equalize_target,
-            outcomes_path=outcomes_path,
-            outcome_column=outcome_column,
+            n_boot=n_boot, equalize_target=equalize_target,
+            outcomes_path=outcomes_path, outcome_column=outcome_column,
+            rcft_budget=rcft_budget, rcft_criterion=rcft_criterion,
+            run_bgr=run_bgr, bgr_n_threshold=bgr_n_threshold,
         )
         meta.update(eval_meta)
         write_report(out_dir, meta, title=cfg.get("report", {}).get("title", "FairPRS-Clin Report"))
@@ -75,27 +74,20 @@ def run_from_config(config_path: Path, out_override: Optional[Path] = None) -> N
 
     out_prefix = out_dir / "intermediate" / "plink2_score"
     sscore_path = run_plink2_score(
-        plink2_path=plink2_path,
-        dataset_mode=dataset_mode,
-        dataset_prefix=dataset_prefix,
-        normalized_weights=norm_weights,
+        plink2_path=plink2_path, dataset_mode=dataset_mode,
+        dataset_prefix=dataset_prefix, normalized_weights=norm_weights,
         out_prefix=out_prefix,
         extra_args=cfg.get("plink2", {}).get("extra_args", []),
     )
     meta["inputs"]["scores"] = str(sscore_path)
 
     eval_meta = evaluate_scores(
-        scores_path=sscore_path,
-        groups_path=groups_path,
-        out_dir=out_dir,
-        cutoff=cutoff,
-        cutoff_percentile=cutoff_percentile,
-        standardize=standardize,
-        score_column=None,
-        n_boot=n_boot,
-        equalize_target=equalize_target,
-        outcomes_path=outcomes_path,
-        outcome_column=outcome_column,
+        scores_path=sscore_path, groups_path=groups_path, out_dir=out_dir,
+        cutoff=cutoff, cutoff_percentile=cutoff_percentile, standardize=standardize,
+        score_column=None, n_boot=n_boot, equalize_target=equalize_target,
+        outcomes_path=outcomes_path, outcome_column=outcome_column,
+        rcft_budget=rcft_budget, rcft_criterion=rcft_criterion,
+        run_bgr=run_bgr, bgr_n_threshold=bgr_n_threshold,
     )
     meta.update(eval_meta)
 
@@ -115,18 +107,17 @@ def evaluate_only(
     equalize_target: float = 0.10,
     outcomes_path: Optional[Path] = None,
     outcome_column: Optional[str] = None,
+    rcft_budget: float = 0.10,
+    rcft_criterion: str = "demographic_parity",
+    run_bgr: bool = True,
+    bgr_n_threshold: int = 100,
 ) -> None:
     meta = evaluate_scores(
-        scores_path=scores_path,
-        groups_path=groups_path,
-        out_dir=out_dir,
-        cutoff=cutoff,
-        cutoff_percentile=cutoff_percentile,
-        standardize=standardize,
-        score_column=score_column,
-        n_boot=n_boot,
-        equalize_target=equalize_target,
-        outcomes_path=outcomes_path,
-        outcome_column=outcome_column,
+        scores_path=scores_path, groups_path=groups_path, out_dir=out_dir,
+        cutoff=cutoff, cutoff_percentile=cutoff_percentile, standardize=standardize,
+        score_column=score_column, n_boot=n_boot, equalize_target=equalize_target,
+        outcomes_path=outcomes_path, outcome_column=outcome_column,
+        rcft_budget=rcft_budget, rcft_criterion=rcft_criterion,
+        run_bgr=run_bgr, bgr_n_threshold=bgr_n_threshold,
     )
     write_report(out_dir, meta, title="FairPRS-Clin Report")
