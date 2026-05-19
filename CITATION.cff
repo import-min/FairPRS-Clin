@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use FairPRS-Clin, please cite it using this metadata."
+title: "FairPRS-Clin: A Resource-Constrained Fair Threshold framework for ancestry-equitable polygenic risk score screening"
+version: 0.4.0
+date-released: 2025-01-01
+license: MIT
+authors:
+  - family-names: Aisha
+    given-names: Minahal
+    affiliation: University of Virginia
+repository-code: "https://github.com/import-min/FairPRS-Clin"
+abstract: >
+  FairPRS-Clin evaluates polygenic risk score portability across ancestry
+  groups and corrects screening disparities using three novel methods:
+  the Ancestry Portability Score (APS), Resource-Constrained Fair Threshold
+  (RCFT), and Bayesian Group Recalibration (BGR). Applied to PGS000036 on
+  1000 Genomes Phase 3, a global top-10% threshold shows an 18.3x flagging
+  disparity between European and African ancestry groups. RCFT reduces this
+  to 1.01x while maintaining the screening budget.
+keywords:
+  - polygenic risk score
+  - ancestry
+  - health equity
+  - fairness
+  - genomics
+  - ClinGen
+  - resource-constrained optimization
