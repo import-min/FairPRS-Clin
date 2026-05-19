@@ -192,8 +192,10 @@ def make_figures(out_dir, df):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scores", default=None)
-    ap.add_argument("--groups", default=None)
+    ap.add_argument("--scores", default="examples/pgs000036_1kg_real.sscore",
+                    help="Path to .sscore file (default: real plink2-computed 1000G scores)")
+    ap.add_argument("--groups", default="examples/1kg_hg38_groups.tsv",
+                    help="Path to groups TSV (default: 1000G Phase 3 ancestry labels)")
     ap.add_argument("--out", default="results/paper")
     args = ap.parse_args()
 
@@ -201,9 +203,10 @@ def main():
     data_dir = out_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.scores:
-        print(f"Loading real plink2 scores from: {args.scores}")
-        scores_df = load_sscore(Path(args.scores))
+    scores_path_obj = Path(args.scores)
+    if scores_path_obj.exists():
+        print(f"Loading scores from: {args.scores}")
+        scores_df = load_sscore(scores_path_obj)
         scores_path = data_dir / "scores.csv"
         scores_df.to_csv(scores_path, index=False)
         groups_path = Path(args.groups) if args.groups else Path("examples/1kg_groups.tsv")
