@@ -1,8 +1,10 @@
 # FairPRS-Clin
 
-Polygenic risk scores are increasingly discussed for clinical use, but most published scores were built on European ancestry cohorts and behave unevenly when applied to diverse populations. Applying PGS000036, the most cited Type 2 diabetes PRS, to 1000 Genomes Phase 3 data with a global top-5% screening threshold flags 8.6% of European ancestry individuals and 1.9% of African ancestry individuals. That is a 4.5x gap that grows monotonically as the threshold gets stricter, reaching over 8x at the 99th percentile. This disparity is a structural property of applying a European trained score to a diverse population.
+Polygenic risk scores are increasingly discussed for clinical use, but most published scores were built on European ancestry cohorts and behave unevenly when applied to diverse populations. Using PGS000036, a published Type 2 diabetes score, a global top-10% cutoff flags 48.7% of European ancestry individuals and 0% of African ancestry individuals on 1000 Genomes Phase 3 data. That is a 18x gap comes from score itself being trained on European GWAS data, so the risk alleles it tracks are far more common in Europeans.
 
-FairPRS-Clin addresses this with three methods. The Ancestry Portability Score quantifies how evenly a PRS performs across ancestry groups as a single number from 0 to 1, with bootstrap confidence intervals, using only score distributions without requiring outcome data. The Resource Constrained Fair Threshold finds per-group screening thresholds that equalize flagging rates while keeping the total fraction of people flagged fixed to a clinical budget. Applied to the T2D example above, it reduces the 4.5x disparity to 1.04x with no change in total population coverage. Bayesian Group Recalibration estimates ancestry-specific recalibration parameters with shrinkage toward the global model, which prevents overfitting when ancestry groups have small case counts. All outputs are linked to the ClinGen PRS Reporting Standards checklist.
+
+FairPRS-Clin measures this problem and fixes it. The Ancestry Portability Score gives a single number from 0 to 1 summarizing how evenly a PRS distributes across ancestry groups, computed from score distributions alone without needing outcome data. The Resource Constrained Fair Threshold finds per-group cutoffs that equalize flagging rates while keeping the total fraction of people screened fixed to avoid flagging more people overall. On the T2D example it brings the 18x gap down to 1.01x. Bayesian Group Recalibration fits ancestry-specific recalibration parameters with shrinkage toward the global model, which applies to some groups that only have a few dozen cases. All outputs map to the ClinGen PRS Reporting Standards checklist.
+
 
 ## Install
 
@@ -14,16 +16,24 @@ pip install -e .
 
 ```bash
 fairprs-clin evaluate \
-  --scores examples/pgs000036_1kg_scores.csv \
-  --groups examples/1kg_groups.tsv \
-  --cutoff-percentile 95 \
-  --rcft-budget 0.05 \
+  --scores examples/pgs000036_1kg_real.sscore \
+  --groups examples/1kg_hg38_groups.tsv \
+  --cutoff-percentile 90 \
+  --rcft-budget 0.10 \
   --out out/demo
 ```
 
-Add `--outcomes path/to/outcomes.tsv` to compute per-group AUC, calibration slope, and BGR recalibration. To score from raw genotype data use `fairprs-clin run --config examples/config_plink2.yaml`. The groups file needs columns `IID` and `group`. The outcomes file needs `IID` and a binary `outcome` column. Everything else is auto-detected.
+Add `--outcomes path/to/outcomes.tsv` to get per-group AUC, calibration, and BGR recalibration. The groups file needs `IID` and `group` columns. The outcomes file needs `IID` and a binary `outcome` column. Everything else is auto-detected.
 
-The included `examples/pgs000036_1kg_scores.csv` contains scores for all 2,373 1000 Genomes Phase 3 samples using real sample IDs, with score distributions generated from published PGS000036 parameters. To reproduce the paper results run `python examples/reproduce_analysis.py`.
+To reproduce the paper results:
+
+```bash
+python examples/reproduce_analysis.py \
+  --scores examples/pgs000036_1kg_real.sscore \
+  --groups examples/1kg_hg38_groups.tsv
+```
+
+The scores file contains real plink2-computed PRS for all 3,202 1000 Genomes Phase 3 samples scored with plink2 v2.0 against PGS000036 weights from the PGS Catalog.
 
 ## Outputs
 
