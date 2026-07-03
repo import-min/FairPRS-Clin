@@ -1,0 +1,30 @@
+name: Generate Poster Figures
+
+on:
+  workflow_dispatch:   # run manually: Actions tab -> Generate Poster Figures -> Run workflow
+  push:
+    paths:
+      - 'examples/generate_poster_figures.py'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install matplotlib numpy pandas scipy seaborn
+
+      - name: Generate figures
+        run: python examples/generate_poster_figures.py
+
+      - name: Upload figures
+        uses: actions/upload-artifact@v4
+        with:
+          name: poster-figures
+          path: poster_figures/
+          retention-days: 30
