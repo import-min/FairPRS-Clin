@@ -10,7 +10,7 @@ from .utils import read_table
 def load_groups(groups_path: Path) -> pd.DataFrame:
     df = read_table(groups_path)
     # flexible column naming
-    cols = {c.lower(): c for c in df.columns}
+    cols = {c.lower().lstrip("#"): c for c in df.columns}
     iid_col = cols.get("iid") or cols.get("sample") or cols.get("id")
     grp_col = cols.get("group") or cols.get("ancestry") or cols.get("super_population") or cols.get("population")
     if iid_col is None or grp_col is None:
@@ -32,20 +32,14 @@ def load_scores(scores_path: Path, score_column: Optional[str] = None) -> pd.Dat
     else:
         df = read_table(scores_path)
 
-    cols_lower = {c.lower(): c for c in df.columns}
+    cols_lower = {c.lower().lstrip("#"): c for c in df.columns}
     iid_col = cols_lower.get("iid") or cols_lower.get("sample") or cols_lower.get("id")
     if iid_col is None:
-        # sometimes FID/IID exist
-        if "IID" in df.columns:
-            iid_col = "IID"
-        elif "iid" in df.columns:
-            iid_col = "iid"
-        else:
-            raise ValueError(f"Could not find IID column in scores file. Columns: {list(df.columns)}")
+        raise ValueError(f"Could not find IID column in scores file. Columns: {list(df.columns)}")
 
     if score_column is None:
         # common plink2 names
-        candidates = [c for c in df.columns if c.upper().startswith("SCORE") and ("SUM" in c.upper() or "AVG" in c.upper())]
+        candidates = [c for c in df.columns if "SUM" in c.upper() or "AVG" in c.upper()]
         if len(candidates) == 0:
             # fallback: common "score"
             if "score" in cols_lower:
