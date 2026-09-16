@@ -205,7 +205,7 @@ def main():
 
     scores_path_obj = Path(args.scores)
     if scores_path_obj.exists():
-        print(f"Loading scores from: {args.scores}")
+        ((f"Loading scores from: {args.scores}")
         scores_df = load_sscore(scores_path_obj)
         scores_path = data_dir / "scores.csv"
         scores_df.to_csv(scores_path, index=False)
@@ -247,7 +247,8 @@ def main():
     print("="*60)
     print(f"\nAPS = {aps['aps_point']:.3f} (95% CI: {aps['aps_ci_lo']:.3f}-{aps['aps_ci_hi']:.3f})")
     print(f"{aps['interpretation']}")
-    print(f"\nGlobal top-5% disparity: {nd:.2f}x")
+    disparity_str = "∞ (0% flagged in at least one group)" if np.isinf(nd) else f"{nd:.2f}x"
+    print(f"\nGlobal top-5% disparity: {disparity_str}")
     print(f"  {meta['equity']['max_flagging_group']}: {meta['equity']['max_flagging_rate']*100:.1f}% flagged")
     print(f"  {meta['equity']['min_flagging_group']}: {meta['equity']['min_flagging_rate']*100:.1f}% flagged")
     print(f"\nAfter RCFT: {rd:.2f}x  ({(1-rd/nd)*100:.0f}% reduction)")
