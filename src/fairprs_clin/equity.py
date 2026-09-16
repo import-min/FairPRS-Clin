@@ -326,17 +326,15 @@ def resource_constrained_fair_threshold(
     all_scores = df[score_col].values
     naive_cutoff = float(np.percentile(all_scores, (1 - budget) * 100))
     naive_rates = {g: float((group_data[g] >= naive_cutoff).mean()) for g in groups}
-    naive_non_zero = [r for r in naive_rates.values() if r > 0]
-    naive_dr = (max(naive_non_zero) / min(naive_non_zero)
-                if len(naive_non_zero) > 1 and min(naive_non_zero) > 0
+    naive_dr = (max(naive_rates.values()) / min(naive_rates.values())
+                if min(naive_rates.values()) > 0
                 else float("inf"))
 
     # RCFT results
     rcft_rates = {g: float(flag_rates[g][best_idx[g]]) for g in groups}
     rcft_cutoffs = {g: float(group_thresholds[g][best_idx[g]]) for g in groups}
-    rcft_non_zero = [r for r in rcft_rates.values() if r > 0]
-    rcft_dr = (max(rcft_non_zero) / min(rcft_non_zero)
-               if len(rcft_non_zero) > 1 and min(rcft_non_zero) > 0
+    rcft_dr = (max(rcft_rates.values()) / min(rcft_rates.values())
+               if min(rcft_rates.values()) > 0
                else float("inf"))
 
     actual_budget = total_flagged(best_idx)
