@@ -7,6 +7,7 @@ import pandas as pd
 
 from .utils import read_table
 
+
 def load_groups(groups_path: Path) -> pd.DataFrame:
     df = read_table(groups_path)
     # flexible column naming
@@ -20,6 +21,7 @@ def load_groups(groups_path: Path) -> pd.DataFrame:
     out["IID"] = out["IID"].astype(str)
     out["group"] = out["group"].astype(str)
     return out
+
 
 def load_scores(scores_path: Path, score_column: Optional[str] = None) -> pd.DataFrame:
     # PLINK2 .sscore is space/tab-delimited and includes IID and SCORE1_SUM or SCORE1_AVG
@@ -58,3 +60,21 @@ def load_scores(scores_path: Path, score_column: Optional[str] = None) -> pd.Dat
     out["SCORE"] = pd.to_numeric(out["SCORE"], errors="coerce")
     out = out.dropna(subset=["SCORE"])
     return out
+
+
+def check_overlap(scores: pd.DataFrame, groups: pd.DataFrame) -> None:
+    overlap = len(set(scores["IID"]) & set(groups["IID"]))
+    frac = overlap / max(len(scores), 1)
+    if frac < 0.5:
+        raise ValueError(
+            f"Only {overlap} of {len(scores)} scored samples have group labels "
+            f"({frac:.0%}). Check that the scores and groups files refer to the "
+            f"same cohort and genome build."
+        )
+    if frac < 0.95:
+        import warnings
+        warnings.warn(
+            f"Only {overlap} of {len(scores)} scored samples have group labels "
+            f"({frac:.0%}); the rest will be dropped.",
+            stacklevel=2,
+        )
