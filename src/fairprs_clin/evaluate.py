@@ -124,6 +124,7 @@ def evaluate_scores(
     # ── Load ──────────────────────────────────────────────────────────────
     scores = load_scores(scores_path, score_column=score_column)
     groups = load_groups(groups_path)
+    check_overlap(scores, groups)
     df = scores.merge(groups, on="IID", how="inner")
     if df.empty:
         raise ValueError("No IID overlap between scores and groups.")
