@@ -5,7 +5,8 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .io import load_groups, load_scores
+
+from .io import check_overlap, load_groups, load_scores
 from .utils import ensure_dir, write_json
 from .equity import (
     pairwise_smds, ks_tests, bootstrap_group_stats,
