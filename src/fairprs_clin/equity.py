@@ -164,8 +164,8 @@ def sensitivity_curve(
     for pct in percentiles:
         cutoff = float(np.percentile(all_scores, pct))
         rates = {g: float((group_scores[g] >= cutoff).mean()) for g in groups}
-        non_zero = [r for r in rates.values() if r > 0]
-        ratio = (max(non_zero) / min(non_zero)) if len(non_zero) > 1 and min(non_zero) > 0 else float("nan")
+        rate_vals = list(rates.values())
+        ratio = (max(rate_vals) / min(rate_vals)) if min(rate_vals) > 0 else float("nan")
         for g in groups:
             records.append({
                 "percentile": pct,
